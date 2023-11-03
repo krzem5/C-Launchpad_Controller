@@ -166,3 +166,37 @@ _Bool launchpad_process_events(launchpad_t* launchpad,launchpad_button_event_t* 
 		return 1;
 	}
 }
+
+
+
+void launchpad_set_led_hsl(launchpad_t* launchpad,uint8_t x,uint8_t y,uint8_t h,uint8_t s,uint8_t l){
+	if (!s){
+		launchpad_set_led(launchpad,x,y,l,l,l);
+		return;
+	}
+	uint8_t r=h/43;
+	uint8_t rm=(h-(r*43))*6;
+	uint8_t p=(l*(255-s))>>8;
+	uint8_t q=(l*(255-((s*rm)>>8)))>>8;
+	uint8_t t=(l*(255-((s*(255-rm))>>8)))>>8;
+	switch (r){
+		case 0:
+			launchpad_set_led(launchpad,x,y,l,t,p);
+			break;
+		case 1:
+			launchpad_set_led(launchpad,x,y,q,l,p);
+			break;
+		case 2:
+			launchpad_set_led(launchpad,x,y,p,l,t);
+			break;
+		case 3:
+			launchpad_set_led(launchpad,x,y,p,q,l);
+			break;
+		case 4:
+			launchpad_set_led(launchpad,x,y,t,p,l);
+			break;
+		default:
+			launchpad_set_led(launchpad,x,y,l,p,q);
+			break;
+	}
+}
