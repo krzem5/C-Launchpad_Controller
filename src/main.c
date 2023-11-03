@@ -33,9 +33,8 @@ static void _redraw_bar(launchpad_t* launchpad,uint8_t index){
 static void _select_button(launchpad_t* launchpad,uint8_t selection_index){
 	mode=selection_index;
 	launchpad_set_led_rgb(launchpad,8,0,0xffffff);
-	launchpad_set_led_rgb(launchpad,8,7,(mode==0?0xffffff:0x000000));
-	for (uint8_t i=0;i<7;i++){
-		launchpad_set_led_rgb(launchpad,8,i+1,(mode==3?sidebar_colors[i]:0));
+	for (uint8_t i=1;i<8;i++){
+		launchpad_set_led_rgb(launchpad,8,i,0x000000);
 	}
 	for (uint8_t i=0;i<4;i++){
 		launchpad_set_led_rgb(launchpad,i,8,(mode==2?0xffffff:0x000000));
@@ -44,6 +43,7 @@ static void _select_button(launchpad_t* launchpad,uint8_t selection_index){
 		launchpad_set_led_rgb(launchpad,4+i,8,(i==selection_index?0x00ff00:0xffffff));
 	}
 	if (!mode){
+		launchpad_set_led_rgb(launchpad,8,7,0xffffff);
 		for (uint8_t i=0;i<8;i++){
 			for (uint8_t j=0;j<8;j++){
 				launchpad_set_led_hsl(launchpad,i,j,(i+j*8)<<2,255,255);
@@ -64,6 +64,9 @@ static void _select_button(launchpad_t* launchpad,uint8_t selection_index){
 			_redraw_bar(launchpad,i);
 		}
 		return;
+	}
+	for (uint8_t i=0;i<7;i++){
+		launchpad_set_led_rgb(launchpad,8,i+1,sidebar_colors[i]);
 	}
 	selected_sidebar_color=sidebar_colors[5];
 	launchpad_set_led_rgb(launchpad,0,8,selected_sidebar_color);
