@@ -21,6 +21,7 @@ static void _redraw_bar(launchpad_t* launchpad,uint8_t index){
 
 static void _select_button(launchpad_t* launchpad,uint8_t selection_index){
 	mode=selection_index;
+	launchpad_set_led_rgb(launchpad,8,0,0xffffff);
 	launchpad_set_led_rgb(launchpad,8,7,(mode==0?0xffffff:0x000000));
 	for (uint8_t i=0;i<4;i++){
 		launchpad_set_led_rgb(launchpad,i,8,(mode==2?0xffffff:0x000000));
@@ -65,16 +66,6 @@ int main(void){
 	if (!launchpad_open(&launchpad)){
 		return 1;
 	}
-	launchpad_set_led_rgb(&launchpad,0,0,0xef0000);
-	launchpad_set_led_rgb(&launchpad,0,1,0x2f0000);
-	launchpad_set_led_rgb(&launchpad,1,0,0x00ef00);
-	launchpad_set_led_rgb(&launchpad,1,1,0x00ef00);
-	launchpad_set_led_rgb(&launchpad,1,2,0x002f00);
-	launchpad_set_led_rgb(&launchpad,2,0,0x0000ef);
-	launchpad_set_led_rgb(&launchpad,2,1,0x0000ef);
-	launchpad_set_led_rgb(&launchpad,2,2,0x0000ef);
-	launchpad_set_led_rgb(&launchpad,2,3,0x00002f);
-	launchpad_set_led_rgb(&launchpad,8,0,0xffffff);
 	_select_button(&launchpad,2);
 	launchpad_update_leds(&launchpad);
 	while (1){
