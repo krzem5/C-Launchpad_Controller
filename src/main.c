@@ -165,7 +165,7 @@ int main(void){
 				launchpad_set_led_rgb(&launchpad,event.x,event.y,0x000000);
 			}
 			else{
-				launchpad_set_led_hsl(&launchpad,event.x,event.y,rand()&255,(rand()&63)+192,(rand()&63)+192);
+				launchpad_set_led_hsl(&launchpad,event.x,event.y,rand()&255,(rand()&31)+224,(rand()&63)+192);
 			}
 		}
 		else if (mode==2){
