@@ -55,6 +55,7 @@ static void _select_button(launchpad_t* launchpad,uint8_t selection_index){
 		return;
 	}
 	if (mode==1){
+		launchpad_set_led_rgb(launchpad,8,7,0xffffff);
 		for (uint8_t i=0;i<64;i++){
 			launchpad_set_led_rgb(launchpad,i&7,i>>3,0x000000);
 		}
@@ -103,6 +104,14 @@ int main(void){
 					}
 					else{
 						launchpad_set_led_hsl(&launchpad,i&7,i>>3,i<<2,255,255);
+					}
+				}
+				goto _redraw_display;
+			}
+			if (mode==1&&event.y==7){
+				for (uint8_t i=0;i<64;i++){
+					if (launchpad_get_led_rgb(&launchpad,i&7,i>>3)){
+						launchpad_set_led_hsl(&launchpad,i&7,i>>3,rand()&255,(rand()&31)+224,(rand()&63)+192);
 					}
 				}
 				goto _redraw_display;
