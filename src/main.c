@@ -1,3 +1,6 @@
+// grid=hue, sidebar=saturation, sidebar_button=(sidebar=brightness)
+// grid=hue, sidebar=brightness, sidebar_button=(sidebar=saturation)
+// grid=brightness, sidebar=saturation[selected=0%]
 #include <launchpad/launchpad.h>
 #include <stdio.h>
 #include <stdlib.h>

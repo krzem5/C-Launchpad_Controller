@@ -175,10 +175,10 @@ void launchpad_set_led_hsl(launchpad_t* launchpad,uint8_t x,uint8_t y,uint8_t h,
 		return;
 	}
 	uint8_t r=h/43;
-	uint8_t rm=(h-(r*43))*6;
+	uint8_t m=(h-(r*43))*6;
 	uint8_t p=(l*(255-s))>>8;
-	uint8_t q=(l*(255-((s*rm)>>8)))>>8;
-	uint8_t t=(l*(255-((s*(255-rm))>>8)))>>8;
+	uint8_t q=(l*(255-((s*m)>>8)))>>8;
+	uint8_t t=(l*(255-((s*(255-m))>>8)))>>8;
 	switch (r){
 		case 0:
 			launchpad_set_led(launchpad,x,y,l,t,p);
