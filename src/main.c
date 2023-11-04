@@ -63,7 +63,7 @@ static void _select_button(launchpad_t* launchpad,uint8_t selection_index){
 	if (mode==2){
 		selected_bar_index=0xff;
 		for (uint8_t i=0;i<8;i++){
-			bar_values[i]=rand()%17;
+			bar_values[i]=(rand()&15)+1;
 			_redraw_bar(launchpad,i);
 		}
 		return;
