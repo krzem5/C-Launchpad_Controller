@@ -538,8 +538,8 @@ int main(void){
 								chess_board[new_index]=0;
 							}
 							else if (chess_moves.data[i]&MOVE_FLAG_CASTLE){
-								chess_moves.data[new_index]=chess_board[piece_source_index]|FLAG_MOVED;
-								chess_moves.data[(new_index+piece_source_index)>>1]=chess_board[INDEX((event.x==2?0:7),event.y)]|FLAG_MOVED;
+								chess_board[new_index]=chess_board[piece_source_index]|FLAG_MOVED;
+								chess_board[(new_index+piece_source_index)>>1]=chess_board[INDEX((event.x==2?0:7),event.y)]|FLAG_MOVED;
 								chess_board[INDEX((event.x==2?0:7),event.y)]=0;
 							}
 							else{
