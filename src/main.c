@@ -260,6 +260,18 @@ static const uint32_t chess_piece_colors[]={
 
 
 
+static const uint32_t chess_piece_dark_colors[]={
+	[TYPE_NONE]=0x000000,
+	[TYPE_PAWN]=0x7f0000,
+	[TYPE_ROOK]=0x7f7f00,
+	[TYPE_KNIGHT]=0x007f00,
+	[TYPE_BISHOP]=0x007f7f,
+	[TYPE_QUEEN]=0x7f007f,
+	[TYPE_KING]=0x00007f,
+};
+
+
+
 static piece_t chess_board[64];
 static uint8_t chess_player_color;
 static chess_moves_t chess_moves;
@@ -273,7 +285,7 @@ static _Bool _calculate_moves(uint8_t index,chess_moves_t* out);
 static void _draw_entire_board(launchpad_t* launchpad,uint8_t mask,uint8_t value){
 	for (uint8_t i=0;i<8;i++){
 		for (uint8_t j=0;j<8;j++){
-			launchpad_set_led_rgb(launchpad,i,j,((chess_board[INDEX(i,j)]&mask)==value?chess_piece_colors[chess_board[INDEX(i,j)]&TYPE_MASK]:0x000000));
+			launchpad_set_led_rgb(launchpad,i,j,((chess_board[INDEX(i,j)]&mask)==value?((chess_board[INDEX(i,j)]&FLAG_COLOR)!=chess_player_color?chess_piece_dark_colors:chess_piece_colors)[chess_board[INDEX(i,j)]&TYPE_MASK]:0x000000));
 		}
 	}
 }
@@ -554,8 +566,8 @@ int main(void){
 								last_en_passant[!!chess_player_color]=new_index;
 							}
 							piece_source_index=0xff;
-							_draw_entire_board(&launchpad,0,0);
 							chess_player_color^=FLAG_COLOR;
+							_draw_entire_board(&launchpad,0,0);
 							goto _move_found;
 						}
 					}
@@ -591,7 +603,7 @@ _move_found:
 			uint8_t j=chess_moves.data[i]&MOVE_INDEX_MASK;
 			if (chess_board[j]){
 				piece_t type=chess_board[j]&TYPE_MASK;
-				color=((timer&(16>>(type==TYPE_KING)))?chess_piece_colors[type]:0x000000);
+				color=((timer&(16>>(type==TYPE_KING)))?chess_piece_dark_colors[type]:0x000000);
 			}
 			launchpad_set_led_rgb(&launchpad,j&7,j>>3,color);
 		}
