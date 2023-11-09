@@ -215,7 +215,7 @@ _redraw_display:
 
 
 
-#define TYPE_MASK 0x7f
+#define TYPE_MASK 0x3f
 #define TYPE_NONE 0
 #define TYPE_PAWN 1
 #define TYPE_ROOK 2
@@ -224,6 +224,7 @@ _redraw_display:
 #define TYPE_QUEEN 5
 #define TYPE_KING 6
 
+#define FLAG_MOVED 0x40
 #define FLAG_COLOR 0x80
 
 #define FLAG_WHITE 0x00
@@ -268,7 +269,7 @@ static _Bool _check_move(int8_t x,int8_t y,_Bool allow_empty){
 	if (x<0||x>7||y<0||y>7){
 		return 0;
 	}
-	if ((allow_empty&&!chess_board[INDEX(x,y)])||(chess_board[INDEX(x,y)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR)){
+	if ((allow_empty&&!chess_board[INDEX(x,y)])||(chess_board[INDEX(x,y)]&&(chess_board[INDEX(x,y)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR))){
 		chess_valid_moves[chess_valid_move_count++]=INDEX(x,y);
 		return 1;
 	}
@@ -277,18 +278,16 @@ static _Bool _check_move(int8_t x,int8_t y,_Bool allow_empty){
 
 
 
-static void _check_moves_directional(uint8_t x,uint8_t y,int8_t dx,int8_t dy){
-	x+=dx;
-	y+=dy;
+static void _check_moves_directional(int8_t x,int8_t y,int8_t dx,int8_t dy){
 	while (x+dx>=0&&x+dx<8&&y+dy>=0&&y+dy<8){
+		x+=dx;
+		y+=dy;
 		if (!chess_board[INDEX(x,y)]){
 			chess_valid_moves[chess_valid_move_count++]=INDEX(x,y);
 		}
 		else if (_check_move(x,y,0)||chess_board[INDEX(x,y)]){
 			break;
 		}
-		x+=dx;
-		y+=dy;
 	}
 }
 
@@ -378,6 +377,29 @@ static _Bool _calculate_moves(uint8_t index){
 
 
 
+static void _select_piece(launchpad_t* launchpad,uint8_t index){
+	launchpad_set_led_rgb(launchpad,8,3,chess_piece_colors[TYPE_ROOK]);
+	launchpad_set_led_rgb(launchpad,8,4,chess_piece_colors[TYPE_KNIGHT]);
+	launchpad_set_led_rgb(launchpad,8,5,chess_piece_colors[TYPE_BISHOP]);
+	launchpad_set_led_rgb(launchpad,8,6,chess_piece_colors[TYPE_QUEEN]);
+	launchpad_update_leds(launchpad);
+	for (;;usleep(16000)){
+		launchpad_button_event_t event;
+		if (!launchpad_process_events(launchpad,&event)||!event.is_pressed||event.x!=8||event.y<3||event.y>6){
+			continue;
+		}
+		chess_board[index]=(event.y-3+TYPE_ROOK)|chess_player_color;
+		break;
+	}
+	launchpad_set_led_rgb(launchpad,8,3,0x000000);
+	launchpad_set_led_rgb(launchpad,8,4,0x000000);
+	launchpad_set_led_rgb(launchpad,8,5,0x000000);
+	launchpad_set_led_rgb(launchpad,8,6,0x000000);
+	launchpad_update_leds(launchpad);
+}
+
+
+
 int main(void){
 	launchpad_t launchpad;
 	if (!launchpad_open(&launchpad)){
@@ -430,8 +452,11 @@ int main(void){
 					for (uint8_t i=0;i<chess_valid_move_count;i++){
 						if (chess_valid_moves[i]==new_index){
 							chess_valid_move_count=0;
-							chess_board[new_index]=chess_board[piece_source_index];
+							chess_board[new_index]=chess_board[piece_source_index]|FLAG_MOVED;
 							chess_board[piece_source_index]=0;
+							if ((chess_board[new_index]&TYPE_MASK)==TYPE_PAWN&&event.y==(chess_player_color==FLAG_WHITE?7:0)){
+								_select_piece(&launchpad,new_index);
+							}
 							piece_source_index=0xff;
 							_draw_entire_board(&launchpad,0,0);
 							chess_player_color^=FLAG_COLOR;
