@@ -231,12 +231,20 @@ _redraw_display:
 #define FLAG_WHITE 0x00
 #define FLAG_BLACK 0x80
 
-#define MOVE_INDEX_MASK 0x7f
+#define MOVE_INDEX_MASK 0x3f
+#define MOVE_FLAG_CASTLE 0x40
 #define MOVE_FLAG_EN_PASSANT 0x80
 
 
 
 typedef uint8_t piece_t;
+
+
+
+typedef struct _CHESS_MOVES{
+	uint8_t data[27];
+	uint8_t count;
+} chess_moves_t;
 
 
 
@@ -254,8 +262,11 @@ static const uint32_t chess_piece_colors[]={
 
 static piece_t chess_board[64];
 static uint8_t chess_player_color;
-static uint8_t chess_valid_moves[27];
-static uint8_t chess_valid_move_count;
+static chess_moves_t chess_moves;
+
+
+
+static _Bool _calculate_moves(uint8_t index,chess_moves_t* out);
 
 
 
@@ -269,12 +280,12 @@ static void _draw_entire_board(launchpad_t* launchpad,uint8_t mask,uint8_t value
 
 
 
-static _Bool _check_move(int8_t x,int8_t y,_Bool allow_empty){
+static _Bool _check_move(int8_t x,int8_t y,_Bool allow_empty,chess_moves_t* out){
 	if (x<0||x>7||y<0||y>7){
 		return 0;
 	}
 	if ((allow_empty&&!chess_board[INDEX(x,y)])||(chess_board[INDEX(x,y)]&&(chess_board[INDEX(x,y)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR))){
-		chess_valid_moves[chess_valid_move_count++]=INDEX(x,y);
+		out->data[out->count++]=INDEX(x,y);
 		return 1;
 	}
 	return 0;
@@ -282,14 +293,14 @@ static _Bool _check_move(int8_t x,int8_t y,_Bool allow_empty){
 
 
 
-static void _check_moves_directional(int8_t x,int8_t y,int8_t dx,int8_t dy){
+static void _check_moves_directional(int8_t x,int8_t y,int8_t dx,int8_t dy,chess_moves_t* out){
 	while (x+dx>=0&&x+dx<8&&y+dy>=0&&y+dy<8){
 		x+=dx;
 		y+=dy;
 		if (!chess_board[INDEX(x,y)]){
-			chess_valid_moves[chess_valid_move_count++]=INDEX(x,y);
+			out->data[out->count++]=INDEX(x,y);
 		}
-		else if (_check_move(x,y,0)||chess_board[INDEX(x,y)]){
+		else if (_check_move(x,y,0,out)||chess_board[INDEX(x,y)]){
 			break;
 		}
 	}
@@ -297,98 +308,145 @@ static void _check_moves_directional(int8_t x,int8_t y,int8_t dx,int8_t dy){
 
 
 
-static _Bool _calculate_moves(uint8_t index){
+static void _check_castle(uint8_t x,uint8_t y,chess_moves_t* out){
+	uint8_t min_check_test=(x?4:2);
+	uint8_t max_check_test=(x?6:4);
+	if (x){
+		for (uint8_t i=1;i<4;i++){
+			if (chess_board[INDEX(i,y)]){
+				return;
+			}
+		}
+	}
+	else{
+		for (uint8_t i=5;i<7;i++){
+			if (chess_board[INDEX(i,y)]){
+				return;
+			}
+		}
+	}
+	chess_player_color^=FLAG_COLOR;
+	for (uint8_t i=0;i<64;i++){
+		if (!chess_board[i]||(chess_board[i]&FLAG_COLOR)!=chess_player_color){
+			continue;
+		}
+		chess_moves_t tmp;
+		if (!_calculate_moves(i,&tmp)){
+			continue;
+		}
+		for (uint8_t j=0;j<tmp.count;j++){
+			uint8_t mx=(tmp.data[j]&MOVE_INDEX_MASK)&7;
+			uint8_t my=(tmp.data[j]&MOVE_INDEX_MASK)>>3;
+			if (my==y&&mx>=min_check_test&&mx<=max_check_test){
+				goto _cleanup;
+			}
+		}
+	}
+	out->data[out->count++]=INDEX((x?6:2),y)|MOVE_FLAG_CASTLE;
+_cleanup:
+	chess_player_color^=FLAG_COLOR;
+}
+
+
+
+static _Bool _calculate_moves(uint8_t index,chess_moves_t* out){
+	out->count=0;
 	piece_t piece=chess_board[index];
 	if (!piece||(piece&FLAG_COLOR)!=chess_player_color){
 		return 0;
 	}
 	int8_t x=index&7;
 	int8_t y=index>>3;
-	chess_valid_move_count=0;
 	switch (piece&TYPE_MASK){
 		case TYPE_PAWN:
 			if (chess_player_color==FLAG_WHITE){
 				if (y<7&&!chess_board[INDEX(x,y+1)]){
-					chess_valid_moves[chess_valid_move_count++]=INDEX(x,y+1);
+					out->data[out->count++]=INDEX(x,y+1);
 					if (y==1&&!chess_board[INDEX(x,y+2)]){
-						chess_valid_moves[chess_valid_move_count++]=INDEX(x,y+2);
+						out->data[out->count++]=INDEX(x,y+2);
 					}
 				}
 				if (x&&y<7){
-					_check_move(x-1,y+1,0);
+					_check_move(x-1,y+1,0,out);
 				}
 				if (x<7&&y<7){
-					_check_move(x+1,y+1,0);
+					_check_move(x+1,y+1,0,out);
 				}
 				if (x<7&&y==4&&(chess_board[INDEX(x+1,y)]&FLAG_EN_PASSANT)&&(chess_board[INDEX(x+1,y)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR)){
-					chess_valid_moves[chess_valid_move_count++]=INDEX(x+1,y)|MOVE_FLAG_EN_PASSANT;
+					out->data[out->count++]=INDEX(x+1,y)|MOVE_FLAG_EN_PASSANT;
 				}
 				if (x&&y==4&&(chess_board[INDEX(x-1,y)]&FLAG_EN_PASSANT)&&(chess_board[INDEX(x-1,y)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR)){
-					chess_valid_moves[chess_valid_move_count++]=INDEX(x-1,y)|MOVE_FLAG_EN_PASSANT;
+					out->data[out->count++]=INDEX(x-1,y)|MOVE_FLAG_EN_PASSANT;
 				}
 			}
 			else{
 				if (y&&!chess_board[INDEX(x,y-1)]){
-					chess_valid_moves[chess_valid_move_count++]=INDEX(x,y-1);
+					out->data[out->count++]=INDEX(x,y-1);
 					if (y==6&&!chess_board[INDEX(x,y-2)]){
-						chess_valid_moves[chess_valid_move_count++]=INDEX(x,y-2);
+						out->data[out->count++]=INDEX(x,y-2);
 					}
 				}
 				if (x&&y){
-					_check_move(x-1,y-1,0);
+					_check_move(x-1,y-1,0,out);
 				}
 				if (x<7&&y){
-					_check_move(x+1,y-1,0);
+					_check_move(x+1,y-1,0,out);
 				}
 				if (x<7&&y==3&&(chess_board[INDEX(x+1,y)]&FLAG_EN_PASSANT)&&(chess_board[INDEX(x+1,y)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR)){
-					chess_valid_moves[chess_valid_move_count++]=INDEX(x+1,y)|MOVE_FLAG_EN_PASSANT;
+					out->data[out->count++]=INDEX(x+1,y)|MOVE_FLAG_EN_PASSANT;
 				}
 				if (x&&y==3&&(chess_board[INDEX(x-1,y)]&FLAG_EN_PASSANT)&&(chess_board[INDEX(x-1,y)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR)){
-					chess_valid_moves[chess_valid_move_count++]=INDEX(x-1,y)|MOVE_FLAG_EN_PASSANT;
+					out->data[out->count++]=INDEX(x-1,y)|MOVE_FLAG_EN_PASSANT;
 				}
 			}
 			break;
 		case TYPE_ROOK:
-			_check_moves_directional(x,y,1,0);
-			_check_moves_directional(x,y,-1,0);
-			_check_moves_directional(x,y,0,1);
-			_check_moves_directional(x,y,0,-1);
+			_check_moves_directional(x,y,1,0,out);
+			_check_moves_directional(x,y,-1,0,out);
+			_check_moves_directional(x,y,0,1,out);
+			_check_moves_directional(x,y,0,-1,out);
 			break;
 		case TYPE_KNIGHT:
-			_check_move(x+2,y-1,1);
-			_check_move(x+2,y+1,1);
-			_check_move(x-2,y-1,1);
-			_check_move(x-2,y+1,1);
-			_check_move(x-1,y+2,1);
-			_check_move(x+1,y+2,1);
-			_check_move(x-1,y-2,1);
-			_check_move(x+1,y-2,1);
+			_check_move(x+2,y-1,1,out);
+			_check_move(x+2,y+1,1,out);
+			_check_move(x-2,y-1,1,out);
+			_check_move(x-2,y+1,1,out);
+			_check_move(x-1,y+2,1,out);
+			_check_move(x+1,y+2,1,out);
+			_check_move(x-1,y-2,1,out);
+			_check_move(x+1,y-2,1,out);
 			break;
 		case TYPE_BISHOP:
-			_check_moves_directional(x,y,1,1);
-			_check_moves_directional(x,y,-1,1);
-			_check_moves_directional(x,y,1,-1);
-			_check_moves_directional(x,y,-1,-1);
+			_check_moves_directional(x,y,1,1,out);
+			_check_moves_directional(x,y,-1,1,out);
+			_check_moves_directional(x,y,1,-1,out);
+			_check_moves_directional(x,y,-1,-1,out);
 			break;
 		case TYPE_QUEEN:
-			_check_moves_directional(x,y,1,1);
-			_check_moves_directional(x,y,1,0);
-			_check_moves_directional(x,y,1,-1);
-			_check_moves_directional(x,y,0,1);
-			_check_moves_directional(x,y,0,-1);
-			_check_moves_directional(x,y,-1,1);
-			_check_moves_directional(x,y,-1,0);
-			_check_moves_directional(x,y,-1,-1);
+			_check_moves_directional(x,y,1,1,out);
+			_check_moves_directional(x,y,1,0,out);
+			_check_moves_directional(x,y,1,-1,out);
+			_check_moves_directional(x,y,0,1,out);
+			_check_moves_directional(x,y,0,-1,out);
+			_check_moves_directional(x,y,-1,1,out);
+			_check_moves_directional(x,y,-1,0,out);
+			_check_moves_directional(x,y,-1,-1,out);
 			break;
 		case TYPE_KING:
 			for (int8_t dx=-1;dx<2;dx++){
 				for (int8_t dy=-1;dy<2;dy++){
-					_check_move(x+dx,y+dy,1);
+					_check_move(x+dx,y+dy,1,out);
 				}
+			}
+			if (!((chess_board[INDEX(0,y)]|piece)&FLAG_MOVED)){
+				_check_castle(0,y,out);
+			}
+			if (!((chess_board[INDEX(7,y)]|piece)&FLAG_MOVED)){
+				_check_castle(7,y,out);
 			}
 			break;
 	}
-	return !!chess_valid_move_count;
+	return !!out->count;
 }
 
 
@@ -448,7 +506,7 @@ int main(void){
 	chess_board[INDEX(6,7)]=TYPE_KNIGHT|FLAG_BLACK;
 	chess_board[INDEX(7,7)]=TYPE_ROOK|FLAG_BLACK;
 	chess_player_color=FLAG_WHITE;
-	chess_valid_move_count=0;
+	chess_moves.count=0;
 	_draw_entire_board(&launchpad,0,0);
 	uint8_t piece_source_index=0xff;
 	uint8_t last_en_passant[2]={0xff,0xff};
@@ -467,17 +525,22 @@ int main(void){
 				}
 				if (piece_source_index==0xff){
 					_draw_entire_board(&launchpad,0,0);
-					if (_calculate_moves(new_index)){
+					if (_calculate_moves(new_index,&chess_moves)){
 						piece_source_index=new_index;
 					}
 				}
 				else{
-					for (uint8_t i=0;i<chess_valid_move_count;i++){
-						if ((chess_valid_moves[i]&MOVE_INDEX_MASK)==new_index){
-							chess_valid_move_count=0;
-							if (chess_valid_moves[i]&MOVE_FLAG_EN_PASSANT){
+					for (uint8_t i=0;i<chess_moves.count;i++){
+						if ((chess_moves.data[i]&MOVE_INDEX_MASK)==new_index){
+							chess_moves.count=0;
+							if (chess_moves.data[i]&MOVE_FLAG_EN_PASSANT){
 								chess_board[(chess_player_color==FLAG_WHITE?new_index+8:new_index-8)]=chess_board[piece_source_index]|FLAG_MOVED;
 								chess_board[new_index]=0;
+							}
+							else if (chess_moves.data[i]&MOVE_FLAG_CASTLE){
+								chess_moves.data[new_index]=chess_board[piece_source_index]|FLAG_MOVED;
+								chess_moves.data[(new_index+piece_source_index)>>1]=chess_board[INDEX((event.x==2?0:7),event.y)]|FLAG_MOVED;
+								chess_board[INDEX((event.x==2?0:7),event.y)]=0;
 							}
 							else{
 								chess_board[new_index]=chess_board[piece_source_index]|FLAG_MOVED;
@@ -499,7 +562,7 @@ int main(void){
 					if (chess_board[new_index]&&(chess_board[new_index]&FLAG_COLOR)==chess_player_color){
 						piece_source_index=0xff;
 						_draw_entire_board(&launchpad,0,0);
-						if (_calculate_moves(new_index)){
+						if (_calculate_moves(new_index,&chess_moves)){
 							piece_source_index=new_index;
 						}
 					}
@@ -523,9 +586,9 @@ _move_found:
 				}
 			}
 		}
-		for (uint8_t i=0;i<chess_valid_move_count;i++){
+		for (uint8_t i=0;i<chess_moves.count;i++){
 			uint32_t color=0xb2b2b2;
-			uint8_t j=chess_valid_moves[i]&MOVE_INDEX_MASK;
+			uint8_t j=chess_moves.data[i]&MOVE_INDEX_MASK;
 			if (chess_board[j]){
 				piece_t type=chess_board[j]&TYPE_MASK;
 				color=((timer&(16>>(type==TYPE_KING)))?chess_piece_colors[type]:0x000000);
