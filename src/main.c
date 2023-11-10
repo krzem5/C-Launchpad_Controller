@@ -262,12 +262,12 @@ static const uint32_t chess_piece_colors[]={
 
 static const uint32_t chess_piece_dark_colors[]={
 	[TYPE_NONE]=0x000000,
-	[TYPE_PAWN]=0x7f0000,
-	[TYPE_ROOK]=0x7f7f00,
-	[TYPE_KNIGHT]=0x007f00,
-	[TYPE_BISHOP]=0x007f7f,
-	[TYPE_QUEEN]=0x7f007f,
-	[TYPE_KING]=0x00007f,
+	[TYPE_PAWN]=0x5f0000,
+	[TYPE_ROOK]=0x5f5f00,
+	[TYPE_KNIGHT]=0x005f00,
+	[TYPE_BISHOP]=0x005f5f,
+	[TYPE_QUEEN]=0x5f005f,
+	[TYPE_KING]=0x00005f,
 };
 
 
@@ -278,7 +278,7 @@ static chess_moves_t chess_moves;
 
 
 
-static _Bool _calculate_moves(uint8_t index,chess_moves_t* out);
+static _Bool _calculate_moves(uint8_t index,chess_moves_t* out,uint8_t state);
 
 
 
@@ -320,48 +320,73 @@ static void _check_moves_directional(int8_t x,int8_t y,int8_t dx,int8_t dy,chess
 
 
 
-static void _check_castle(uint8_t x,uint8_t y,chess_moves_t* out){
-	uint8_t min_check_test=(x?4:2);
-	uint8_t max_check_test=(x?6:4);
-	if (x){
-		for (uint8_t i=1;i<4;i++){
-			if (chess_board[INDEX(i,y)]){
-				return;
+static _Bool _is_valid_king_move_check(uint8_t min_x,uint8_t min_y,uint8_t max_x,uint8_t max_y,uint8_t state){
+	chess_player_color^=FLAG_COLOR;
+	for (uint8_t i=0;i<64;i++){
+		if (!chess_board[i]||(chess_board[i]&FLAG_COLOR)!=chess_player_color||(chess_board[i]&TYPE_MASK)==TYPE_KING){
+			continue;
+		}
+		chess_moves_t tmp;
+		if (!_calculate_moves(i,&tmp,state+1)){
+			continue;
+		}
+		for (uint8_t j=0;j<tmp.count;j++){
+			uint8_t mx=(tmp.data[j]&MOVE_INDEX_MASK)&7;
+			uint8_t my=(tmp.data[j]&MOVE_INDEX_MASK)>>3;
+			if (mx>=min_x&&mx<=max_x&&my>=min_y&&my<=max_y){
+				chess_player_color^=FLAG_COLOR;
+				return 0;
 			}
 		}
 	}
-	else{
+	chess_player_color^=FLAG_COLOR;
+	return 1;
+}
+
+
+
+static _Bool _is_valid_king_move(int8_t x,int8_t y){
+	for (int8_t dx=-1;dx<2;dx++){
+		for (int8_t dy=-1;dy<2;dy++){
+			if (x+dx>=0&&x+dx<8&&y+dy>=0&&y+dy<8&&(chess_board[INDEX(x+dx,y+dy)]&TYPE_MASK)==TYPE_KING&&(chess_board[INDEX(x+dx,y+dy)]&FLAG_COLOR)==(chess_player_color^FLAG_COLOR)){
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+
+
+static void _check_castle(uint8_t x,uint8_t y,chess_moves_t* out){
+	if (!_is_valid_king_move((x?6:2),y)){
+		return;
+	}
+	uint8_t min_check_test=(x?4:2);
+	uint8_t max_check_test=(x?6:4);
+	if (x){
 		for (uint8_t i=5;i<7;i++){
 			if (chess_board[INDEX(i,y)]){
 				return;
 			}
 		}
 	}
-	chess_player_color^=FLAG_COLOR;
-	for (uint8_t i=0;i<64;i++){
-		if (!chess_board[i]||(chess_board[i]&FLAG_COLOR)!=chess_player_color){
-			continue;
-		}
-		chess_moves_t tmp;
-		if (!_calculate_moves(i,&tmp)){
-			continue;
-		}
-		for (uint8_t j=0;j<tmp.count;j++){
-			uint8_t mx=(tmp.data[j]&MOVE_INDEX_MASK)&7;
-			uint8_t my=(tmp.data[j]&MOVE_INDEX_MASK)>>3;
-			if (my==y&&mx>=min_check_test&&mx<=max_check_test){
-				goto _cleanup;
+	else{
+		for (uint8_t i=1;i<4;i++){
+			if (chess_board[INDEX(i,y)]){
+				return;
 			}
 		}
 	}
+	if (!_is_valid_king_move_check(min_check_test,max_check_test,y,y,0)){
+		return;
+	}
 	out->data[out->count++]=INDEX((x?6:2),y)|MOVE_FLAG_CASTLE;
-_cleanup:
-	chess_player_color^=FLAG_COLOR;
 }
 
 
 
-static _Bool _calculate_moves(uint8_t index,chess_moves_t* out){
+static _Bool _calculate_moves(uint8_t index,chess_moves_t* out,uint8_t state){
 	out->count=0;
 	piece_t piece=chess_board[index];
 	if (!piece||(piece&FLAG_COLOR)!=chess_player_color){
@@ -447,7 +472,9 @@ static _Bool _calculate_moves(uint8_t index,chess_moves_t* out){
 		case TYPE_KING:
 			for (int8_t dx=-1;dx<2;dx++){
 				for (int8_t dy=-1;dy<2;dy++){
-					_check_move(x+dx,y+dy,1,out);
+					if (_is_valid_king_move(x+dx,y+dy)&&_is_valid_king_move_check(x+dx,y+dy,x+dx,y+dy,state)){
+						_check_move(x+dx,y+dy,1,out);
+					}
 				}
 			}
 			if (!((chess_board[INDEX(0,y)]|piece)&FLAG_MOVED)){
@@ -457,6 +484,47 @@ static _Bool _calculate_moves(uint8_t index,chess_moves_t* out){
 				_check_castle(7,y,out);
 			}
 			break;
+	}
+	if ((piece&TYPE_MASK)==TYPE_KING||state>=2){
+		return !!out->count;
+	}
+	uint8_t kx=0;
+	uint8_t ky=0;
+	for (uint8_t i=0;i<64;i++){
+		if ((chess_board[i]&(TYPE_MASK|FLAG_COLOR))==(TYPE_KING|chess_player_color)){
+			kx=i&7;
+			ky=i>>3;
+			break;
+		}
+	}
+	for (int8_t i=0;i<out->count;i++){
+		uint8_t j=out->data[i];
+		if (j&MOVE_FLAG_CASTLE){
+			continue;
+		}
+		uint8_t k=j&MOVE_INDEX_MASK;
+		piece_t other=chess_board[k];
+		if (j&MOVE_FLAG_EN_PASSANT){
+			chess_board[(chess_player_color==FLAG_WHITE?k+8:k-8)]=piece|FLAG_MOVED;
+			chess_board[k]=0;
+		}
+		else{
+			chess_board[k]=piece;
+		}
+		chess_board[index]=0;
+		if (!_is_valid_king_move_check(kx,ky,kx,ky,state)){
+			// printf("Invalid move: %u,%u -> %u,%u\n",x,y,k&3,k>>3);
+			out->count--;
+			if (i<out->count){
+				out->data[i]=out->data[out->count];
+			}
+			i--;
+		}
+		if (j&MOVE_FLAG_EN_PASSANT){
+			chess_board[(chess_player_color==FLAG_WHITE?k+8:k-8)]=0;
+		}
+		chess_board[index]=piece;
+		chess_board[k]=other;
 	}
 	return !!out->count;
 }
@@ -474,7 +542,7 @@ static void _select_piece(launchpad_t* launchpad,uint8_t index){
 		if (!launchpad_process_events(launchpad,&event)||!event.is_pressed||event.x!=8||event.y<3||event.y>6){
 			continue;
 		}
-		chess_board[index]=(event.y-3+TYPE_ROOK)|chess_player_color;
+		chess_board[index]=(event.y-3+TYPE_ROOK)|chess_player_color|FLAG_MOVED;
 		break;
 	}
 	launchpad_set_led_rgb(launchpad,8,3,0x000000);
@@ -537,9 +605,14 @@ int main(void){
 				}
 				if (piece_source_index==0xff){
 					_draw_entire_board(&launchpad,0,0);
-					if (_calculate_moves(new_index,&chess_moves)){
+					if (_calculate_moves(new_index,&chess_moves,0)){
 						piece_source_index=new_index;
 					}
+				}
+				else if (piece_source_index==new_index){
+					piece_source_index=0xff;
+					chess_moves.count=0;
+					_draw_entire_board(&launchpad,0,0);
 				}
 				else{
 					for (uint8_t i=0;i<chess_moves.count;i++){
@@ -555,6 +628,9 @@ int main(void){
 								chess_board[INDEX((event.x==2?0:7),event.y)]=0;
 							}
 							else{
+								if ((chess_board[new_index]&TYPE_MASK)==TYPE_KING){
+									printf("End\n");
+								}
 								chess_board[new_index]=chess_board[piece_source_index]|FLAG_MOVED;
 							}
 							chess_board[piece_source_index]=0;
@@ -574,7 +650,7 @@ int main(void){
 					if (chess_board[new_index]&&(chess_board[new_index]&FLAG_COLOR)==chess_player_color){
 						piece_source_index=0xff;
 						_draw_entire_board(&launchpad,0,0);
-						if (_calculate_moves(new_index,&chess_moves)){
+						if (_calculate_moves(new_index,&chess_moves,0)){
 							piece_source_index=new_index;
 						}
 					}
