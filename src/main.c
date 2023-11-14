@@ -1,10 +1,12 @@
-#if 0
+#define APP 2
+#if APP==0
 // grid=hue, sidebar=saturation, sidebar_button=(sidebar=brightness)
 // grid=hue, sidebar=brightness, sidebar_button=(sidebar=saturation)
 // grid=brightness, sidebar=saturation[selected=0%]
 #include <launchpad/launchpad.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 
 
@@ -92,6 +94,7 @@ int main(void){
 	while (1){
 		launchpad_button_event_t event;
 		if (!launchpad_process_events(&launchpad,&event)||!event.is_pressed){
+			usleep(16000);
 			continue;
 		}
 		if (event.x==8){
@@ -196,14 +199,12 @@ int main(void){
 		}
 _redraw_display:
 		launchpad_update_leds(&launchpad);
+		usleep(16000);
 	}
 	launchpad_close(&launchpad);
 	return 0;
 }
-#else
-// grid=hue, sidebar=saturation, sidebar_button=(sidebar=brightness)
-// grid=hue, sidebar=brightness, sidebar_button=(sidebar=saturation)
-// grid=brightness, sidebar=saturation[selected=0%]
+#elif APP==1
 #include <launchpad/launchpad.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -692,6 +693,116 @@ _move_found:
 		}
 		launchpad_update_leds(&launchpad);
 		usleep(16000);
+	}
+	launchpad_close(&launchpad);
+	return 0;
+}
+#else
+#include <launchpad/launchpad.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+
+
+#define INDEX(x,y) ((x)|((y)<<3))
+
+
+
+static uint8_t fruit_index=0;
+static uint8_t snake[64]={INDEX(4,4),INDEX(4,3)};
+static uint8_t snake_length=2;
+
+
+
+static void _generate_fruit(void){
+_retry:
+	fruit_index=rand()&63;
+	for (uint8_t i=0;i<snake_length;i++){
+		if (snake[i]==fruit_index){
+			goto _retry;
+		}
+	}
+}
+
+
+
+int main(void){
+	launchpad_t launchpad;
+	if (!launchpad_open(&launchpad)){
+		return 1;
+	}
+	launchpad_set_led_rgb(&launchpad,0,8,0xffffff);
+	launchpad_set_led_rgb(&launchpad,1,8,0xffffff);
+	launchpad_set_led_rgb(&launchpad,2,8,0xffffff);
+	launchpad_set_led_rgb(&launchpad,3,8,0xffffff);
+	launchpad_set_led_rgb(&launchpad,8,0,0xffffff);
+	int8_t dx=0;
+	int8_t dy=1;
+	uint8_t quit_timer=0;
+	_generate_fruit();
+	while (1){
+		launchpad_button_event_t event;
+		if (launchpad_process_events(&launchpad,&event)){
+			if (event.y==8&&event.is_pressed){
+				if (!event.x){
+					dx=0;
+					dy=1;
+				}
+				else if (event.x==1){
+					dx=0;
+					dy=-1;
+				}
+				else if (event.x==2){
+					dx=-1;
+					dy=0;
+				}
+				else if (event.x==3){
+					dx=1;
+					dy=0;
+				}
+			}
+			else if (event.x==8&&!event.y){
+				quit_timer=(event.is_pressed?1:0);
+			}
+		}
+		if (dx||dy){
+			uint8_t new_head=INDEX(((snake[0]&7)+dx)&7,((snake[0]>>3)+dy)&7);
+			if (new_head==fruit_index){
+				fruit_index=0xff;
+				snake_length++;
+			}
+			else{
+				for (uint8_t i=0;i<snake_length;i++){
+					if (snake[i]==new_head){
+						dx=0;
+						dy=0;
+						goto _continue;
+					}
+				}
+				launchpad_set_led_rgb(&launchpad,snake[snake_length-1]&7,snake[snake_length-1]>>3,0x000000);
+			}
+			for (uint8_t i=snake_length-1;i;i--){
+				snake[i]=snake[i-1];
+			}
+			snake[0]=new_head;
+			if (fruit_index==0xff){
+				_generate_fruit();
+			}
+		}
+_continue:
+		for (uint8_t i=0;i<snake_length;i++){
+			launchpad_set_led_hsl(&launchpad,snake[i]&7,snake[i]>>3,i<<4,255,255);
+		}
+		launchpad_set_led_rgb(&launchpad,fruit_index&7,fruit_index>>3,0xffffff);
+		launchpad_update_leds(&launchpad);
+		usleep(500000);
+		if (quit_timer){
+			quit_timer++;
+			if (quit_timer==3){
+				break;
+			}
+		}
 	}
 	launchpad_close(&launchpad);
 	return 0;
