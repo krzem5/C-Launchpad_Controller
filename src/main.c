@@ -796,7 +796,7 @@ _continue:
 		}
 		launchpad_set_led_rgb(&launchpad,fruit_index&7,fruit_index>>3,0xffffff);
 		launchpad_update_leds(&launchpad);
-		usleep(500000);
+		usleep(300000);
 		if (quit_timer){
 			quit_timer++;
 			if (quit_timer==3){
