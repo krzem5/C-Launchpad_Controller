@@ -1,8 +1,5 @@
-#define APP 2
+#define APP 3
 #if APP==0
-// grid=hue, sidebar=saturation, sidebar_button=(sidebar=brightness)
-// grid=hue, sidebar=brightness, sidebar_button=(sidebar=saturation)
-// grid=brightness, sidebar=saturation[selected=0%]
 #include <launchpad/launchpad.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -697,7 +694,7 @@ _move_found:
 	launchpad_close(&launchpad);
 	return 0;
 }
-#else
+#elif APP==2
 #include <launchpad/launchpad.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -803,6 +800,117 @@ _continue:
 				break;
 			}
 		}
+	}
+	launchpad_close(&launchpad);
+	return 0;
+}
+#else
+#include <launchpad/launchpad.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+
+
+#define MODE_GRID_HUE_SIDEBAR_SATURATION 0
+#define MODE_GRID_HUE_SIDEBAR_BRIGHTNESS 1
+#define MODE_GRID_BRIGHTNESS_SIDEBAR_SATURATION 2
+
+
+
+static uint8_t mode;
+static uint8_t selected_hue=0;
+static uint8_t selected_saturation=0;
+static uint8_t selected_brightness=0;
+static const uint8_t _sidebar_values[]={
+	0,
+	68,
+	125,
+	172,
+	208,
+	234,
+	255
+};
+
+
+
+static void _redraw_grid(launchpad_t* launchpad){
+	if (mode==MODE_GRID_HUE_SIDEBAR_SATURATION||mode==MODE_GRID_HUE_SIDEBAR_BRIGHTNESS){
+		for (uint8_t i=0;i<64;i++){
+			launchpad_set_led_hsl(launchpad,i&7,i>>3,i<<2,selected_saturation,selected_brightness);
+		}
+		return;
+	}
+	for (uint8_t i=0;i<64;i++){
+		launchpad_set_led_hsl(launchpad,i&7,i>>3,0,0,i<<2);
+	}
+}
+
+
+
+static void _redraw_sidebar(launchpad_t* launchpad){
+	if (mode==MODE_GRID_HUE_SIDEBAR_SATURATION||mode==MODE_GRID_BRIGHTNESS_SIDEBAR_SATURATION){
+		for (uint8_t i=0;i<7;i++){
+			launchpad_set_led_hsl(launchpad,8,i+1,selected_hue,_sidebar_values[i],selected_brightness);
+		}
+		return;
+	}
+	for (uint8_t i=0;i<7;i++){
+		launchpad_set_led_hsl(launchpad,8,i+1,selected_hue,selected_saturation,_sidebar_values[i]);
+	}
+}
+
+
+
+int main(void){
+	// grid=hue, sidebar=saturation, sidebar_button=(sidebar=brightness)
+	// grid=hue, sidebar=brightness, sidebar_button=(sidebar=saturation)
+	// grid=brightness, sidebar=saturation[selected=0%]
+	launchpad_t launchpad;
+	if (!launchpad_open(&launchpad)){
+		return 1;
+	}
+	mode=MODE_GRID_HUE_SIDEBAR_SATURATION;
+	selected_hue=0;
+	selected_saturation=255;
+	selected_brightness=255;
+	_redraw_grid(&launchpad);
+	_redraw_sidebar(&launchpad);
+	while (1){
+		launchpad_button_event_t event;
+		if (launchpad_process_events(&launchpad,&event)&&event.is_pressed){
+			if (event.x<8&&event.y<8){
+				if (mode==MODE_GRID_HUE_SIDEBAR_SATURATION||mode==MODE_GRID_HUE_SIDEBAR_BRIGHTNESS){
+					selected_hue=(event.x<<2)|(event.y<<5);
+				}
+				else{
+					selected_brightness=(event.x<<2)|(event.y<<5);
+				}
+				_redraw_sidebar(&launchpad);
+			}
+			else if (event.x==8&&event.y){
+				if (mode==MODE_GRID_HUE_SIDEBAR_SATURATION||mode==MODE_GRID_BRIGHTNESS_SIDEBAR_SATURATION){
+					selected_saturation=_sidebar_values[event.y-1];
+					mode=(event.y==1?MODE_GRID_BRIGHTNESS_SIDEBAR_SATURATION:MODE_GRID_HUE_SIDEBAR_SATURATION);
+				}
+				else{
+					selected_brightness=_sidebar_values[event.y-1];
+				}
+				_redraw_grid(&launchpad);
+			}
+			else if (event.x==8&&!event.y){
+				if (mode==MODE_GRID_HUE_SIDEBAR_SATURATION){
+					mode=MODE_GRID_HUE_SIDEBAR_BRIGHTNESS;
+				}
+				else if (mode==MODE_GRID_HUE_SIDEBAR_BRIGHTNESS){
+					mode=MODE_GRID_HUE_SIDEBAR_SATURATION;
+				}
+				_redraw_sidebar(&launchpad);
+			}
+		}
+		launchpad_set_led_hsl(&launchpad,8,8,selected_hue,selected_saturation,selected_brightness);
+		launchpad_update_leds(&launchpad);
+		usleep(16000);
 	}
 	launchpad_close(&launchpad);
 	return 0;
