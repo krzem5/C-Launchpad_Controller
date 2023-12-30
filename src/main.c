@@ -863,9 +863,6 @@ static void _redraw_sidebar(launchpad_t* launchpad){
 
 
 int main(void){
-	// grid=hue, sidebar=saturation, sidebar_button=(sidebar=brightness)
-	// grid=hue, sidebar=brightness, sidebar_button=(sidebar=saturation)
-	// grid=brightness, sidebar=saturation[selected=0%]
 	launchpad_t launchpad;
 	if (!launchpad_open(&launchpad)){
 		return 1;
@@ -874,6 +871,7 @@ int main(void){
 	selected_hue=0;
 	selected_saturation=255;
 	selected_brightness=255;
+	launchpad_set_led_rgb(&launchpad,8,0,0xffffff);
 	_redraw_grid(&launchpad);
 	_redraw_sidebar(&launchpad);
 	while (1){
